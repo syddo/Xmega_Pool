@@ -90,7 +90,7 @@ void Rtc_Init(CLK_RTCSRC_t RTC_CLK_source, RTC_PRESCALER_t RTC_CLK_Presc, uint16
 
 /**
  * \brief        keeps track of time elapsed in seconds, min, hours
- * 
+ *               timer resets after 24 hours.
  * 
  * \return void
  */
@@ -101,7 +101,10 @@ void update_time()
 	if( t.second >= 60 ){
 		t.second -= 60;
 		if(++t.minute == 60){
-			t.hour = 0;
+			t.minute = 0;
+			if(++t.hour == 24){
+				t.hour =0; //reset counter after 24 hrs
+			}
 		}
 	}
 	
