@@ -7,11 +7,9 @@
 
 #include <avr/io.h>
 
-//void * operator new(size_t size);
-void operator delete(void * ptr);
-
 int main(void)
 {
+    
     /* Replace with your application code */
     while (1) 
     {
