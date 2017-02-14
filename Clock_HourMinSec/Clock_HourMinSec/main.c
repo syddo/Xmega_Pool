@@ -120,11 +120,38 @@ void update_time()
  * 
  * \return void
  */
-void display_time()
+void  display_time()
 {
+    #ifdef DEBUG
 	PORTC.OUT = ~(t.second); //invert output for STK600 LED
 	PORTB.OUT = ~(t.minute);
-	PORTA.OUT = ~(t.hour);
+	//PORTA.OUT = ~(t.hour);
+    #endif
+    
+    #ifdef RELEASE
+    PORTC.OUT = t.second;
+    PORTB.OUT = t.minute;
+    //PORTA.OUT = t.hour;
+    #endif
+}
+
+void display_time_compressed()
+{
+    PORTC.OUT |= (t.second & 0x3F) | (t.minute &0x0F <<6);
+    PORTB.OUT |= (t.minute & 0x3C) | ( (t.hour &0xF0 ) <<4 );
+}
+
+/**
+ * \brief        enables the xosc 32kHz at TOSC pins
+ * 
+ * 
+ * \return void
+ */
+void xosc_enable_32kHz()
+{
+    OSC.XOSCCTRL |= OSC_XOSCSEL_32KHz_gc;
+    OSC.CTRL |= OSC_XOSCEN_bm;
+    while ( !(OSC.STATUS & OSC_XOSCRDY_bm) ); // wait for xosc to stabilize
 }
 
 int main(void)
@@ -135,14 +162,16 @@ int main(void)
 	
 	configure_port( &PORTC );
 	configure_port( &PORTB );
-	configure_port( &PORTA );
+	//configure_port( &PORTA );
+    
+    xosc_enable_32kHz();
+    
+    just_enable_interrupts();
+    
+    sei();
 	
-	just_enable_interrupts();
-	
-	//Rtc_Init(OSC_RC32KEN_bm, RTC_PRESCALER_DIV1_gc, 1);
-	Rtc_Init(OSC_RC32KEN_bm, RTC_PRESCALER_DIV1024_gc, 1);
-	
-	sei();
+	//Rtc_Init(OSC_RC32KEN_bm, RTC_PRESCALER_DIV1_gc, 0x7ff);
+	Rtc_Init(CLK_RTCSRC_TOSC_gc, RTC_PRESCALER_DIV1_gc, 0x400);
 	
 	while(1)
 	{
@@ -150,7 +179,7 @@ int main(void)
 		{
 			update_time();
 		}
-		display_time();
+		display_time_compressed();
 	}
 	
 }
