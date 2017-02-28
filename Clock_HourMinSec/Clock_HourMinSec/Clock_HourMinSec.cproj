@@ -38,7 +38,8 @@
         </dependencies>
       </framework-data>
     </AsfFrameworkConfig>
-    <avrtool>com.atmel.avrdbg.tool.powerdebugger</avrtool>
+    <avrtool>
+    </avrtool>
     <avrtoolserialnumber>J50200001996</avrtoolserialnumber>
     <avrdeviceexpectedsignature>0x1E9651</avrdeviceexpectedsignature>
     <com_atmel_avrdbg_tool_powerdebugger>

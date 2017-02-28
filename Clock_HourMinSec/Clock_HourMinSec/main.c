@@ -23,6 +23,10 @@ typedef uint8_t bool;
 
 volatile time t;
 volatile static bool tick = false;
+volatile uint8_t time_pC;
+volatile uint8_t time_pB;
+
+static void time_feedback();
 
 /*
  *	ISR to update the time - tick per second.
@@ -41,7 +45,7 @@ ISR( RTC_OVF_vect )
  */
 void configure_port(volatile PORT_t *port)
 {
-	port->OUT |= ~(0x00); // inverted for STK600
+	//port->OUT |= ~(0x00); // inverted for STK600
 	port->DIR |= 0xFF;
 }
 
@@ -109,37 +113,22 @@ void update_time()
 	}
 	
 	tick = false;
+    time_feedback();
 }
 
-/**
- * \brief        displays the elapsed time in the following ports
- *               PORTA - Hours
- *               PORTB - Minutes
- *               PORTC - Seconds
- * 
- * 
- * \return void
- */
-void  display_time()
+static void time_feedback()
 {
-    #ifdef DEBUG
-	PORTC.OUT = ~(t.second); //invert output for STK600 LED
-	PORTB.OUT = ~(t.minute);
-	//PORTA.OUT = ~(t.hour);
-    #endif
-    
-    #ifdef RELEASE
-    PORTC.OUT = t.second;
-    PORTB.OUT = t.minute;
-    //PORTA.OUT = t.hour;
-    #endif
+    time_pC |= t.second & 0x3F;
+    time_pC |= (t.minute &0x0F)<<6;
+    time_pB |= t.minute & 0x3C; 
+    time_pB |= (t.hour&0xF0 )<<4;
 }
 
-void display_time_compressed()
-{
-    PORTC.OUT |= (t.second & 0x3F) | (t.minute &0x0F <<6);
-    PORTB.OUT |= (t.minute & 0x3C) | ( (t.hour &0xF0 ) <<4 );
-}
+//static void display_time_compressed()
+//{
+//    PORTC.OUT = time_pC;
+//    PORTB.OUT = time_pB;
+//}
 
 /**
  * \brief        enables the xosc 32kHz at TOSC pins
@@ -154,15 +143,75 @@ void xosc_enable_32kHz()
     while ( !(OSC.STATUS & OSC_XOSCRDY_bm) ); // wait for xosc to stabilize
 }
 
+void usart_init_tx()
+{
+    // set TxD H, XCK - L
+    PORTC.OUTSET |= PIN2_bm;
+    // TxD pin as output
+    PORTC.DIR |= 0xFF;
+    // Set Baud rate and frame format
+    USARTC0.BAUDCTRLA = 12;
+    // set mode of operation
+    USARTC0.CTRLA |= 0; //no interupts
+    USARTC0.CTRLB |= 0x08; //Tx only
+    USARTC0.CTRLC |= 0x03;  // select asynchronous USART, disable parity, 1 stop bit, 8 data bits.
+     
+}
+
+void usart_send_char( char c)
+{
+    while( !(USARTC0_STATUS & USART_DREIF_bm)); //wait until data buffer is empty
+    USARTC0_DATA = c;
+}
+
+void usart_send_string( char *text)
+{
+    while(*text != '\0')
+    {
+        usart_send_char(*text++);
+    }
+}
+
+/**
+    Send a unsigned 8bit integer on USART as dec
+
+    @param[in]  number      8 bit number to format
+*/
+void usart_print_dec(uint8_t number)
+{
+    char tmp[11];
+    uint8_t i = sizeof(tmp) - 1;
+
+    tmp[i] = '\0';
+    do {
+        tmp[--i] = (number % 10) + '0';
+        number /= 10;
+    } while (number != 0);
+
+    usart_send_string(tmp + i);
+}
+
+void usart_display_time()
+{
+    usart_send_string("Running Time:");
+    usart_send_string("\nSeconds: ");
+    usart_print_dec(t.second);
+    usart_send_string("\nMinutes: ");
+    usart_print_dec(t.minute);
+    usart_send_string("\nHours: ");
+    usart_print_dec(t.hour);
+    usart_send_string("\n");
+}
+
 int main(void)
 {
 	// allow device to run on default 2MHz internal RC as system clock (default)
 	
 	cli(); //clear global interrupts
 	
-	configure_port( &PORTC );
-	configure_port( &PORTB );
-	//configure_port( &PORTA );
+	//configure_port( &PORTC );
+	//configure_port( &PORTB );
+    usart_init_tx();
     
     xosc_enable_32kHz();
     
@@ -170,16 +219,21 @@ int main(void)
     
     sei();
 	
-	//Rtc_Init(OSC_RC32KEN_bm, RTC_PRESCALER_DIV1_gc, 0x7ff);
+	//Rtc_Init(OSC_RC32KEN_bm, RTC_PRESCALER_DIV1_gc, 0x400);
 	Rtc_Init(CLK_RTCSRC_TOSC_gc, RTC_PRESCALER_DIV1_gc, 0x400);
+    
+    
 	
 	while(1)
 	{
 		if ( tick )
 		{
 			update_time();
+            usart_display_time();
 		}
-		display_time_compressed();
+		//display_time_compressed();
+        
+
 	}
 	
 }
